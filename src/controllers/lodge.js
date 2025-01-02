@@ -3,33 +3,93 @@ const moment = require ('moment')
 const router = express.Router();
 const db = require('../db/index');
 const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 
 
 const dataFilePath = path.join(__dirname, 'rooms.json'); // Path to the JSON file
 
 // Function to read room data from the JSON file
 const readRoomData = () => {
-  try {
-    const data = fs.readFileSync(dataFilePath, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    console.error("Error reading room data:", error);
-    return []; // Return empty array if file doesn't exist or there's an error
-  }
-};
-
-// Function to write room data to the JSON file
-const writeRoomData = (rooms) => {
-  try {
-    fs.writeFileSync(dataFilePath, JSON.stringify(rooms, null, 2), 'utf8');
-  } catch (error) {
-    console.error("Error writing room data:", error);
-  }
-};
-
-let rooms = readRoomData(); // Initialize rooms from the JSON file
-
+    try {
+      const data = fs.readFileSync(dataFilePath, 'utf8');
+      return JSON.parse(data);
+    } catch (error) {
+      return [];
+    }
+  };
   
+  const writeRoomData = (rooms) => {
+    try {
+      fs.writeFileSync(dataFilePath, JSON.stringify(rooms, null, 2), 'utf8');
+    } catch (error) {
+      console.error("Error writing room data:", error);
+    }
+  };
+
+  let rooms = readRoomData();
+const uploadsDir = path.join(__dirname, 'uploads');
+  
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir);
+  }
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+    },
+    filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+    },
+});
+const upload = multer({ storage: storage });
+const homeContentFilePath = path.join(__dirname, 'homeContent.json');
+
+const readHomeContent = () => {
+    try {
+        const data = fs.readFileSync(homeContentFilePath, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        console.error("Error reading home content:", error);
+        return {
+            welcome: { title: "Welcome to Tranquility Lodge", content: []},
+            experiences: [],
+            testimonials: []
+        };
+    }
+};
+
+const writeHomeContent = (content) => {
+    try {
+        fs.writeFileSync(homeContentFilePath, JSON.stringify(content, null, 2), 'utf8');
+    } catch (error) {
+        console.error("Error writing home content:", error);
+    }
+};
+
+let homeContent = readHomeContent();
+
+router.get('/home', (req, res) => {
+    res.json(homeContent);
+});
+
+router.put('/home', upload.single('image'), (req, res) => {
+    let updatedContent = JSON.parse(req.body.content); // Parse the content string
+    if (req.file) {
+        updatedContent = {
+            ...updatedContent,
+            experiences: updatedContent.experiences.map(exp => {
+                if (exp.isBeingUpdated) {
+                    return { ...exp, image: `/uploads/${req.file.filename}` };
+                }
+                return exp;
+            })
+        };
+    }
+    homeContent = updatedContent;
+    writeHomeContent(homeContent);
+    res.json({ message: 'Home content updated', content: homeContent });
+});
+
 router.get('/rooms', async (req, res) => {
     // const getAllQ = `SELECT * FROM sites`;
     // try {
@@ -45,7 +105,7 @@ router.get('/rooms', async (req, res) => {
     return res.status(200).send(rooms);
   });  
 
-  router.post('/rooms',   async(req, res) => {
+  router.post('/rooms', upload.single('image'),  async(req, res) => {
 
 //     if (req.method === 'POST') {
     
@@ -73,39 +133,57 @@ router.get('/rooms', async (req, res) => {
 //       err: `${req.method} method not allowed`
 //     })
 //   }
-const newRoom = req.body;
+if (!req.file) {
+    return res.status(400).json({ message: 'No image uploaded' });
+  }
+
+  const newRoom = {
+    ...req.body,
+    image: `/uploads/${req.file.filename}`, // Store the path
+    price: parseInt(req.body.price)
+  };
+
   rooms.push(newRoom);
   writeRoomData(rooms);
   res.status(201).json({ message: 'Room created', room: newRoom });
 
   });
 
-  router.put('/rooms/:name', (req, res) => {
-    const roomName = req.params.name
-    const updatedRoom = req.body
-
-    const roomIndex = rooms.findIndex(r => r.name === roomName)
-
-    if (roomIndex === -1){
-        return res.status(404).json({message: 'Room not found'})
+  router.put('/rooms/:name',  upload.single('image'), (req, res) => {
+    const roomName = req.params.name;
+    const roomIndex = rooms.findIndex(r => r.name === roomName);
+  
+    if (roomIndex === -1) {
+      return res.status(404).json({ message: 'Room not found' });
     }
-
-    rooms[roomIndex] = updatedRoom
-    writeRoomData(rooms)
-    res.json({message: 'Room updated', room: updatedRoom})
+  
+    const updatedRoom = {
+      ...rooms[roomIndex], // Keep existing properties
+      ...req.body,
+      price: parseInt(req.body.price)
+    };
+  
+    if (req.file) {
+      updatedRoom.image = `/uploads/${req.file.filename}`;
+    }
+  
+    rooms[roomIndex] = updatedRoom;
+    writeRoomData(rooms);
+    res.json({ message: 'Room updated', room: updatedRoom });
+  
 })
 
 router.delete('/rooms/:name', (req, res) => {
-    const roomName = req.params.name
-    const roomIndex = rooms.findIndex(r => r.name === roomName)
-
-    if (roomIndex === -1){
-        return res.status(404).json({message: 'Room not found'})
+    const roomName = req.params.name;
+    const roomIndex = rooms.findIndex(r => r.name === roomName);
+  
+    if (roomIndex === -1) {
+      return res.status(404).json({ message: 'Room not found' });
     }
-
-    rooms.splice(roomIndex, 1)
-    writeRoomData(rooms)
-    res.status(204).send()
+  
+    rooms.splice(roomIndex, 1);
+    writeRoomData(rooms);
+    res.status(204).send();
 })
 
 

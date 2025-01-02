@@ -1,0 +1,20 @@
+{
+  "welcome": {
+    "title": "Welcome to Tranquility kd Lodg",
+    "content": []
+  },
+  "experiences": [
+    {
+      "title": "Free wifi",
+      "description": "Wifi 24/7J",
+      "image": "/uploads/1735776264483.jpg",
+      "isBeingUpdated": true
+    }
+  ],
+  "testimonials": [
+    {
+      "quote": "kkkSILLZ",
+      "author": "TJJ"
+    }
+  ]
+}

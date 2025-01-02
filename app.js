@@ -43,31 +43,31 @@ dotenv.config();
 app.use(express.static(path.join(__dirname, 'public')));
 
 
-const storage = multer.diskStorage({
-    distination: function (req, file, cb) {
-      cb(null, './src');
-    },
-    filename: function (req, file, cb) {
-      cb(null, file.originalname);
-    },
-  });
-  cloudinary.config({
-    cloud_name: process.env.cloud_name,
-    api_key: process.env.api_key,
-    api_secret: process.env.api_secret,
-  });
-  const fileFilter = (req, file, cb) => {
-    if (file.mimetype === 'image/gif'||'image/png') {
-      cb(null, true);
-    } else {
-      cb(new Error('image is not gif'), false);
-    }
-  };
+// const storage = multer.diskStorage({
+//     distination: function (req, file, cb) {
+//       cb(null, './src');
+//     },
+//     filename: function (req, file, cb) {
+//       cb(null, file.originalname);
+//     },
+//   });
+//   cloudinary.config({
+//     cloud_name: process.env.cloud_name,
+//     api_key: process.env.api_key,
+//     api_secret: process.env.api_secret,
+//   });
+//   const fileFilter = (req, file, cb) => {
+//     if (file.mimetype === 'image/gif'||'image/png') {
+//       cb(null, true);
+//     } else {
+//       cb(new Error('image is not gif'), false);
+//     }
+//   };
   
-  const upload = multer({
-    storage,
-    fileFilter,
-  });
+  // const upload = multer({
+  //   storage,
+  //   fileFilter,
+  // });
   
 
 app.use((req, res, next) => {
@@ -82,7 +82,27 @@ app.use((req, res, next) => {
   
   
 
-     
+  const dataFilePath = path.join(__dirname, 'rooms.json');
+  const uploadsDir = path.join(__dirname, 'uploads');
+  
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir);
+  }
+  
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, uploadsDir);
+    },
+    filename: (req, file, cb) => {
+      cb(null, Date.now() + path.extname(file.originalname));
+    },
+  });
+  
+  const upload = multer({ storage: storage });
+  // app.use('/uploads', express.static(uploadsDir));
+  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+
 app.get('/', function(req,res){
 res.json({
     m:'Welcome to zazzau'

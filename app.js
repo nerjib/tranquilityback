@@ -100,7 +100,7 @@ app.use((req, res, next) => {
   
   const upload = multer({ storage: storage });
   // app.use('/uploads', express.static(uploadsDir));
-  app.get('/uploads', express.static(path.join(__dirname, 'uploads')));
+  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 
 app.get('/', function(req,res){

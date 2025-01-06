@@ -1,7 +1,7 @@
 const express = require('express');
 const moment = require ('moment')
 const router = express.Router();
-const db = require('../db/index');
+// const db = require('../db/index');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');

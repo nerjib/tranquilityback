@@ -6,17 +6,17 @@ const path = require('path')
 const fs = require('fs')
 const app = express();
 const multer = require('multer');
-const cloudinary = require('cloudinary');
+// const cloudinary = require('cloudinary');
 
-const Sites = require('./src/controllers/sites')
-const Folders = require('./src/controllers/folders')
-const Files = require('./src/controllers/files')
-const Categories = require('./src/controllers/categories')
-const Customer = require('./src/controllers/customer')
-const Payments = require('./src/controllers/payments')
+// const Sites = require('./src/controllers/sites')
+// const Folders = require('./src/controllers/folders')
+// const Files = require('./src/controllers/files')
+// const Categories = require('./src/controllers/categories')
+// const Customer = require('./src/controllers/customer')
+// const Payments = require('./src/controllers/payments')
 const Lodge = require('./src/controllers/lodge')
 
-const Authsignin = require('./src/controllers/auth/authsignin')
+// const Authsignin = require('./src/controllers/auth/authsignin')
 
 
 
@@ -109,14 +109,14 @@ res.json({
 })
 })
 
-app.use('/api/v1/sites', Sites)
-app.use('/api/v1/folders', Folders)
-app.use('/api/v1/files', Files)
-app.use('/api/v1/categories', Categories)
-app.use('/api/v1/customers', Customer)
-app.use('/api/v1/payments', Payments)
+// app.use('/api/v1/sites', Sites)
+// app.use('/api/v1/folders', Folders)
+// app.use('/api/v1/files', Files)
+// app.use('/api/v1/categories', Categories)
+// app.use('/api/v1/customers', Customer)
+// app.use('/api/v1/payments', Payments)
 app.use('/api/v1/lodge', Lodge)
-app.use('/api/v1/auth/signin', Authsignin)
+// app.use('/api/v1/auth/signin', Authsignin)
 
 
 

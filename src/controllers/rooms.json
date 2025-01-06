@@ -3,6 +3,23 @@
     "name": "trreee",
     "description": "fgghgh",
     "price": 100,
-    "image": "/uploads/1735773286515.jpg"
+    "image": "/uploads/1735773286515.jpg",
+    "available": true
+  },
+  {
+    "name": "UAE",
+    "description": "Suite and",
+    "price": 200,
+    "image": "/uploads/1736105354001.jpg",
+    "available": true
+  },
+  {
+    "name": "Cairo",
+    "description": "nmj jj",
+    "price": 200,
+    "images": [
+      "/uploads/1736117630810.jpg",
+      "/uploads/1736117630824.jpg"
+    ]
   }
 ]

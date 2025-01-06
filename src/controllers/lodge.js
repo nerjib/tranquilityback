@@ -8,6 +8,27 @@ const multer = require('multer');
 
 
 const dataFilePath = path.join(__dirname, 'rooms.json'); // Path to the JSON file
+const bookingsFilePath = path.join(__dirname, 'bookings.json');
+
+const readBookingsData = () => {
+    try {
+        const data = fs.readFileSync(bookingsFilePath, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        console.error("Error reading bookings data:", error);
+        return [];
+    }
+};
+
+const writeBookingsData = (bookings) => {
+    try {
+        fs.writeFileSync(bookingsFilePath, JSON.stringify(bookings, null, 2), 'utf8');
+    } catch (error) {
+        console.error("Error writing bookings data:", error);
+    }
+};
+
+let bookings = readBookingsData();
 
 // Function to read room data from the JSON file
 const readRoomData = () => {
@@ -90,6 +111,8 @@ router.put('/home', upload.single('image'), (req, res) => {
     res.json({ message: 'Home content updated', content: homeContent });
 });
 
+router.get('/uploads', express.static(path.join(__dirname, './uploads')))
+
 router.get('/rooms', async (req, res) => {
     // const getAllQ = `SELECT * FROM sites`;
     // try {
@@ -105,7 +128,7 @@ router.get('/rooms', async (req, res) => {
     return res.status(200).send(rooms);
   });  
 
-  router.post('/rooms', upload.single('image'),  async(req, res) => {
+  router.post('/rooms', upload.array('images', 10),  async(req, res) => {
 
 //     if (req.method === 'POST') {
     
@@ -133,15 +156,17 @@ router.get('/rooms', async (req, res) => {
 //       err: `${req.method} method not allowed`
 //     })
 //   }
-if (!req.file) {
-    return res.status(400).json({ message: 'No image uploaded' });
-  }
+if (!req.files || req.files.length === 0) {
+  return res.status(400).json({ message: 'No images uploaded' });
+}
 
-  const newRoom = {
-    ...req.body,
-    image: `/uploads/${req.file.filename}`, // Store the path
-    price: parseInt(req.body.price)
-  };
+const imagePaths = req.files.map(file => `/uploads/${file.filename}`);
+
+const newRoom = {
+  ...req.body,
+  images: imagePaths, // Store an array of image paths
+  price: parseInt(req.body.price)
+};
 
   rooms.push(newRoom);
   writeRoomData(rooms);
@@ -149,7 +174,7 @@ if (!req.file) {
 
   });
 
-  router.put('/rooms/:name',  upload.single('image'), (req, res) => {
+  router.put('/rooms/:name',  upload.array('images', 10), (req, res) => {
     const roomName = req.params.name;
     const roomIndex = rooms.findIndex(r => r.name === roomName);
   
@@ -157,22 +182,37 @@ if (!req.file) {
       return res.status(404).json({ message: 'Room not found' });
     }
   
-    const updatedRoom = {
-      ...rooms[roomIndex], // Keep existing properties
-      ...req.body,
-      price: parseInt(req.body.price)
-    };
+    let updatedRoom = {
+      ...rooms[roomIndex],
+      ...JSON.parse(req.body.room),
+      price: parseInt(JSON.parse(req.body.room).price)
+  };
   
-    if (req.file) {
-      updatedRoom.image = `/uploads/${req.file.filename}`;
+      if (req.files && req.files.length > 0) {
+        const newImagePaths = req.files.map(file => `/uploads/${file.filename}`);
+        updatedRoom.images = [...updatedRoom.images, ...newImagePaths]; // Add new images
     }
-  
+
     rooms[roomIndex] = updatedRoom;
     writeRoomData(rooms);
     res.json({ message: 'Room updated', room: updatedRoom });
   
 })
+// Add a new route to update room availability
+router.put('/rooms/:name/availability', (req, res) => {
+  const roomName = req.params.name;
+  const { available } = req.body; // Get the new availability status
 
+  const roomIndex = rooms.findIndex(r => r.name === roomName);
+
+  if (roomIndex === -1) {
+      return res.status(404).json({ message: 'Room not found' });
+  }
+
+  rooms[roomIndex].available = available; // Update availability
+  writeRoomData(rooms);
+  res.json({ message: 'Room availability updated', room: rooms[roomIndex] });
+});
 router.delete('/rooms/:name', (req, res) => {
     const roomName = req.params.name;
     const roomIndex = rooms.findIndex(r => r.name === roomName);
@@ -185,7 +225,98 @@ router.delete('/rooms/:name', (req, res) => {
     writeRoomData(rooms);
     res.status(204).send();
 })
+router.delete('/rooms/:name/images/:image', (req, res) => {
+  const roomName = req.params.name
+  const imagePath = req.params.image
+  const roomIndex = rooms.findIndex(r => r.name === roomName)
 
+  if (roomIndex === -1) return res.status(404).json({message: 'Room not found'})
 
+  rooms[roomIndex].images = rooms[roomIndex].images.filter(image => image !== `/uploads/${imagePath}`)
+  writeRoomData(rooms)
+  res.status(204).send()
+})
+router.get('/bookings', (req, res) => {
+  res.json(bookings)
+})
 
+router.get('/rooms/:checkIn/:checkOut', (req, res) => {
+  const checkIn = req.params.checkIn
+  const checkOut = req.params.checkOut
+  const checkInDate = new Date(checkIn)
+  const checkOutDate = new Date(checkOut)
+
+  if (checkInDate >= checkOutDate){
+      return res.status(400).json({message: 'Check out date must be after check in date'})
+  }
+
+  const availableRooms = rooms.map(room => {
+      const isBooked = bookings.some(booking => {
+          if (!booking.roomTypes.includes(room.name)) return false
+          const bookingCheckIn = new Date(booking.checkIn)
+          const bookingCheckOut = new Date(booking.checkOut)
+          return (checkInDate < bookingCheckOut && checkOutDate > bookingCheckIn)
+      })
+
+      return {...room, available: !isBooked}
+  })
+
+  res.json(availableRooms)
+})
+
+router.post('/bookings', (req, res) => {
+  const { roomTypes, checkIn, checkOut, guests, ...rest } = req.body;
+  const checkInDate = new Date(checkIn)
+  const checkOutDate = new Date(checkOut)
+
+  if (!Array.isArray(roomTypes) || roomTypes.length === 0) {
+      return res.status(400).json({ message: 'At least one room type must be selected' });
+  }
+
+  if (checkInDate >= checkOutDate){
+      return res.status(400).json({message: 'Check out date must be after check in date'})
+  }
+
+  // Check availability for all requested rooms and dates
+  const unavailableRooms = roomTypes.filter(roomType => {
+      return bookings.some(booking => {
+          if (!booking.roomTypes.includes(roomType)) return false
+          const bookingCheckIn = new Date(booking.checkIn)
+          const bookingCheckOut = new Date(booking.checkOut)
+          return (checkInDate < bookingCheckOut && checkOutDate > bookingCheckIn)
+      })
+  });
+
+  if (unavailableRooms.length > 0) {
+      return res.status(400).json({ message: `The following rooms are not available for the selected dates: ${unavailableRooms.join(', ')}` });
+  }
+
+  const booking = {
+      id: Date.now(),
+      roomTypes,
+      checkIn,
+      checkOut,
+      guests,
+      ...rest
+  };
+
+  bookings.push(booking);
+  writeBookingsData(bookings); // Save the bookings data
+
+  console.log('New booking:', booking);
+  res.status(201).json({ message: 'Booking successful', bookingId: booking.id });
+});
+
+// route to reset the rooms when the user reload the page
+router.get('/reset', (req, res) => {
+  bookings = []
+  writeBookingsData(bookings)
+  res.json({message: 'bookings reset'})
+})
+router.delete('/bookings/:id', (req, res) => {
+  const id = parseInt(req.params.id)
+  bookings = bookings.filter(booking => booking.id !== id)
+  writeBookingsData(bookings)
+  res.status(204).send()
+})
   module.exports = router;

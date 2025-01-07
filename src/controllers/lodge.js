@@ -5,10 +5,31 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
-
+const cloudinary = require('./cloudinary')
 
 const dataFilePath = path.join(__dirname, 'rooms.json'); // Path to the JSON file
 const bookingsFilePath = path.join(__dirname, 'bookings.json');
+const heroContentFilePath = path.join(__dirname, 'heroContent.json');
+
+const readHeroContent = () => {
+    try {
+        const data = fs.readFileSync(heroContentFilePath, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        console.error("Error reading hero content:", error);
+        return []; // Return empty array if file doesn't exist or there's an error
+    }
+};
+
+const writeHeroContent = (content) => {
+  try {
+      fs.writeFileSync(heroContentFilePath, JSON.stringify(content, null, 2), 'utf8');
+  } catch (error) {
+      console.error("Error writing hero content:", error);
+  }
+};
+
+let heroContent = readHeroContent();
 
 const readBookingsData = () => {
     try {
@@ -89,18 +110,63 @@ const writeHomeContent = (content) => {
 
 let homeContent = readHomeContent();
 
+router.get('/hero', (req, res) => {
+  res.json(heroContent);
+});
+
+router.put('/hero', upload.array('images', 10), async(req, res) => {
+  try {
+      let updatedContent = JSON.parse(req.body.content);
+      const uploader = async (path) => await cloudinary.uploads(path, 'lodge/room', req.body.name+'_'+(new Date()).getTime());
+      const imagePaths = req.files.map(file => `/uploads/${file.filename}`);
+      const urls = []
+      try{
+      if (req.files && req.files.length > 0) {
+    
+            const files = req.files;
+            for (const file of files) {
+              const { path } = file;
+              const newPath = await uploader(path)
+              urls.push(newPath.url)
+            fs.unlinkSync(path)
+            }
+          const newImagePaths = req.files.map(file => `/uploads/${file.filename}`);
+          updatedContent = updatedContent.map((item, index) => {
+              if (item.isBeingUpdated) {
+                  return { ...item }; // Update image if a new one was uploaded
+              }
+              return item
+          })
+      }
+      heroContent = updatedContent;
+      writeHeroContent(heroContent);
+      res.json({ message: 'Hero content updated', content: heroContent });
+    }catch(error){
+
+    }
+  } catch (error) {
+      console.error("Error updating hero content:", error);
+      res.status(500).json({ message: "Error updating hero content" });
+  }
+});
+
 router.get('/home', (req, res) => {
     res.json(homeContent);
 });
 
-router.put('/home', upload.single('image'), (req, res) => {
+router.put('/home', upload.single('image'), async (req, res) => {
     let updatedContent = JSON.parse(req.body.content); // Parse the content string
+    const uploader = async (path) => await cloudinary.uploads(path, 'lodge/home', req.body.name+'_'+(new Date()).getTime());
     if (req.file) {
+      const urls = []
+        const file = req.file.path;
+          const newPath = await uploader(file)
+          urls.push(newPath.url)
         updatedContent = {
             ...updatedContent,
             experiences: updatedContent.experiences.map(exp => {
                 if (exp.isBeingUpdated) {
-                    return { ...exp, image: `/uploads/${req.file.filename}` };
+                    return { ...exp, image: urls[0] };
                 }
                 return exp;
             })
@@ -127,6 +193,22 @@ router.get('/rooms', async (req, res) => {
     // }
     return res.status(200).send(rooms);
   });  
+  router.post('/uploads', upload.single('image'),  async(req, res) => {
+    // let updatedContent = JSON.parse(req.body.content); // Parse the content string
+    const uploader = async (path) => await cloudinary.uploads(path, 'lodge/home', req.body.name+'_'+(new Date()).getTime());
+    
+    try{
+      const urls = []
+      if (req.file) {
+        const file = req.file.path;
+          const newPath = await uploader(file)
+          urls.push(newPath.url)
+    }
+        res.status(201).json({ message: 'successful', imgUrl: urls[0] });
+      } catch (error) {
+      return res.status(400).send(error);
+      }    
+      });
 
   router.post('/rooms', upload.array('images', 10),  async(req, res) => {
 
@@ -159,22 +241,33 @@ router.get('/rooms', async (req, res) => {
 if (!req.files || req.files.length === 0) {
   return res.status(400).json({ message: 'No images uploaded' });
 }
-
+const uploader = async (path) => await cloudinary.uploads(path, 'lodge/room', req.body.name+'_'+(new Date()).getTime());
 const imagePaths = req.files.map(file => `/uploads/${file.filename}`);
-
+const urls = []
+try{
+const files = req.files;
+for (const file of files) {
+  const { path } = file;
+  const newPath = await uploader(path)
+  urls.push(newPath.url)
+ fs.unlinkSync(path)
+ }
 const newRoom = {
   ...req.body,
-  images: imagePaths, // Store an array of image paths
+  images: urls, // Store an array of image paths
   price: parseInt(req.body.price)
 };
-
-  rooms.push(newRoom);
-  writeRoomData(rooms);
-  res.status(201).json({ message: 'Room created', room: newRoom });
+  
+    rooms.push(newRoom);
+    writeRoomData(rooms);
+    res.status(201).json({ message: 'Room created', room: newRoom, urls });
+  } catch (error) {
+  return res.status(400).send(error);
+  }
 
   });
 
-  router.put('/rooms/:name',  upload.array('images', 10), (req, res) => {
+  router.put('/rooms/:name',  upload.array('images', 10), async(req, res) => {
     const roomName = req.params.name;
     const roomIndex = rooms.findIndex(r => r.name === roomName);
   
@@ -187,15 +280,30 @@ const newRoom = {
       ...JSON.parse(req.body.room),
       price: parseInt(JSON.parse(req.body.room).price)
   };
+  const uploader = async (path) => await cloudinary.uploads(path, 'lodge/room', req.body.name+'_'+(new Date()).getTime());
+const imagePaths = req.files.map(file => `/uploads/${file.filename}`);
+const urls = []
+try{
+
   
       if (req.files && req.files.length > 0) {
-        const newImagePaths = req.files.map(file => `/uploads/${file.filename}`);
-        updatedRoom.images = [...updatedRoom.images, ...newImagePaths]; // Add new images
+        // const newImagePaths = req.files.map(file => `/uploads/${file.filename}`);
+        const files = req.files;
+        for (const file of files) {
+          const { path } = file;
+          const newPath = await uploader(path)
+          urls.push(newPath.url)
+        fs.unlinkSync(path)
+        }
+        updatedRoom.images = [...updatedRoom.images, ...urls]; // Add new images
     }
 
     rooms[roomIndex] = updatedRoom;
     writeRoomData(rooms);
     res.json({ message: 'Room updated', room: updatedRoom });
+   } catch(error) {
+
+   }
   
 })
 // Add a new route to update room availability
@@ -228,11 +336,12 @@ router.delete('/rooms/:name', (req, res) => {
 router.delete('/rooms/:name/images/:image', (req, res) => {
   const roomName = req.params.name
   const imagePath = req.params.image
+  const imageIndex = req.params.index
   const roomIndex = rooms.findIndex(r => r.name === roomName)
 
   if (roomIndex === -1) return res.status(404).json({message: 'Room not found'})
 
-  rooms[roomIndex].images = rooms[roomIndex].images.filter(image => image !== `/uploads/${imagePath}`)
+  rooms[roomIndex].images = rooms[roomIndex].images.filter(image => image?.split('/room/')[1] !== imagePath);
   writeRoomData(rooms)
   res.status(204).send()
 })

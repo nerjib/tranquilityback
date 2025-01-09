@@ -1,0 +1,60 @@
+CREATE TABLE rooms (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) UNIQUE NOT NULL, -- Room name should be unique
+    description TEXT,
+    price INTEGER,
+    images TEXT[],
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE bookings (
+    id SERIAL PRIMARY KEY,
+    booking_id INTEGER,
+    room_types TEXT[], -- Array of room names booked
+    check_in DATE NOT NULL,
+    check_out DATE NOT NULL,
+    guests INTEGER,
+    name VARCHAR(255),
+    email VARCHAR(255),
+    phone VARCHAR(20),
+    special_requests TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- Timestamp of booking creation
+    is_paid BOOLEAN
+);
+
+CREATE TABLE home_content (
+    id SERIAL PRIMARY KEY,
+    content JSONB -- Use JSONB for better performance with queries
+);
+
+CREATE TABLE hero_content (
+    id SERIAL PRIMARY KEY,
+    content JSONB
+);
+CREATE TABLE hero_content (
+    id SERIAL PRIMARY KEY,
+    content JSONB
+);
+CREATE TABLE hero_content (
+    id SERIAL PRIMARY KEY,
+    content JSONB
+);
+CREATE TABLE welcome (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255),
+    paragraph TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE experience (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255),
+    paragraph TEXT,
+    image TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE testimonials (
+    id SERIAL PRIMARY KEY,
+    author VARCHAR(255),
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);

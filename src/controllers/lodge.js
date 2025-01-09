@@ -1,7 +1,7 @@
 const express = require('express');
 const moment = require ('moment')
 const router = express.Router();
-// const db = require('../db/index');
+const db = require('../db/index');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
@@ -111,53 +111,114 @@ const writeHomeContent = (content) => {
 
 let homeContent = readHomeContent();
 
-router.get('/hero', (req, res) => {
-  res.json(heroContent);
-});
-
-router.put('/hero', upload.array('images', 10), async(req, res) => {
-  try {
-      let updatedContent = JSON.parse(req.body.content);
-      const uploader = async (path) => await cloudinary.uploads(path, 'lodge/room', req.body.name+'_'+(new Date()).getTime());
-      // const imagePaths = req.files.map(file => `/uploads/${file.filename}`);
-      const urls = []
-      try{
-      if (req.files && req.files.length > 0) {
-    
-            const files = req.files;
-            for (const file of files) {
-              const { path } = file;
-              const newPath = await uploader(path)
-              urls.push(newPath.url)
-            fs.unlinkSync(path)
-            }
-          // const newImagePaths = req.files.map(file => `/uploads/${file.filename}`);
-          updatedContent = updatedContent.map((item, index) => {
-              if (item.isBeingUpdated) {
-                  return { ...item }; // Update image if a new one was uploaded
-              }
-              return item
-          })
+router.get('/hero', async (req, res) => {
+  const getAllQ = `SELECT * FROM hero_content`;
+    try {
+      const { rows } = await db.query(getAllQ);
+      return res.status(201).send(rows);
+    } catch (error) {
+      if (error.routine === '_bt_check_unique') {
+        return res.status(400).send({ message: 'No hero content' });
       }
-      heroContent = updatedContent;
-      writeHeroContent(heroContent);
-      res.json({ message: 'Hero content updated', content: heroContent });
-    }catch(error){
-
+      return res.status(400).send(`${error} jsh`);
     }
-  } catch (error) {
-      console.error("Error updating hero content:", error);
-      res.status(500).json({ message: "Error updating hero content" });
-  }
 });
 
-router.get('/home', (req, res) => {
-    res.json(homeContent);
+router.put('/hero', async(req, res) => {
+  try {
+      // let updatedContent = JSON.parse(req.body.content);
+      // const uploader = async (path) => await cloudinary.uploads(path, 'lodge/room', req.body.name+'_'+(new Date()).getTime());
+      // // const imagePaths = req.files.map(file => `/uploads/${file.filename}`);
+      // const urls = []
+      // if (req.files && req.files.length > 0) {
+    
+      //       const files = req.files;
+      //       for (const file of files) {
+      //         const { path } = file;
+      //         const newPath = await uploader(path)
+      //         urls.push(newPath.url)
+      //       fs.unlinkSync(path)
+      //       }
+      //     // const newImagePaths = req.files.map(file => `/uploads/${file.filename}`);
+      //     updatedContent = updatedContent.map((item, index) => {
+      //         if (item.isBeingUpdated) {
+      //             return { ...item }; // Update image if a new one was uploaded
+      //         }
+      //         return item
+      //     })
+      // }
+      // heroContent = updatedContent;
+      const updatedcontent = `UPDATE hero_content SET content=$1`;
+      const values = [
+        JSON.stringify(req.body)
+        ];
+  const { rows } = await db.query(updatedcontent, values);
+  // console.log(rows);
+  return res.status(201).send(rows);
+  } catch (error) {
+  return res.status(400).send(error);
+  }  
+});
+
+router.post('/hero', async(req, res) => {
+      // let updatedContent = JSON.parse(req.body.content);
+      // const uploader = async (path) => await cloudinary.uploads(path, 'lodge/hero', req.body.name+'_'+(new Date()).getTime());
+      // // const imagePaths = req.files.map(file => `/uploads/${file.filename}`);
+      // const urls = []
+      // if (req.files && req.files.length > 0) {
+    
+      //       const files = req.files;
+      //       // for (const file of files) {
+      //       //   const { path } = file;
+      //       //   const newPath = await uploader(path)
+      //       //   urls.push(newPath.url)
+      //       // fs.unlinkSync(path)
+      //       // }
+      //     // const newImagePaths = req.files.map(file => `/uploads/${file.filename}`);
+      //     updatedContent = updatedContent.map((item, index) => {
+      //         if (item.isBeingUpdated) {
+      //             return { ...item }; // Update image if a new one was uploaded
+      //         }
+      //         return item
+      //     })
+      // }
+      // heroContent = updatedContent;
+      const updatedcontent = `INSERT INTO hero_content (content) VALUES ($1) RETURNING *`;
+      const values = [
+      JSON.stringify(req.body)
+        ];
+        try{
+  const { rows } = await db.query(updatedcontent, values);
+  // console.log(rows);
+  return res.status(201).send(rows);
+  } catch (error) {
+  return res.status(400).send(error);
+  }  
+});
+
+router.get('/home', async (req, res) => {
+  const getAllW = `SELECT * FROM welcome`;
+  const getAllE = `SELECT * FROM experience`;
+  const getAllT = `SELECT * FROM testimonials`;
+
+  try {
+    const { rows: welcome } = await db.query(getAllW);
+    const { rows: experience } = await db.query(getAllE);
+    const { rows: testimonials } = await db.query(getAllT);
+
+    return res.status(201).send({status: true, data: {welcome, experience, testimonials}});
+  } catch (error) {
+    if (error.routine === '_bt_check_unique') {
+      return res.status(400).send({ message: 'No home content' });
+    }
+    return res.status(400).send(`${error} jsh`);
+  }
 });
 
 router.put('/home', upload.single('image'), async (req, res) => {
     let updatedContent = JSON.parse(req.body.content); // Parse the content string
     const uploader = async (path) => await cloudinary.uploads(path, 'lodge/home', req.body.name+'_'+(new Date()).getTime());
+   try{
     if (req.file) {
       const urls = []
         const file = req.file.path;
@@ -174,38 +235,181 @@ router.put('/home', upload.single('image'), async (req, res) => {
         };
     }
     homeContent = updatedContent;
-    writeHomeContent(homeContent);
-    res.json({ message: 'Home content updated', content: homeContent });
+    const updatedcontent = `UPDATE home_content SET content=$1 WHERE id=$2`;
+    const values = [
+    homeContent,
+    req.body.id
+      ];
+    const { rows } = await db.query(updatedcontent, values);
+    // console.log(rows);
+    return res.status(201).send(rows);
+   }catch(error){
+    return res.status(400).send(`${error} jsh`);
+   }
+    // writeHomeContent(homeContent);
+    // res.json({ message: 'Home content updated', content: homeContent });
 });
+router.post('/home/welcome', async (req, res) => {
+ try{
+  
+  const updatedcontent = `INSERT INTO welcome (title, paragraph) VALUES($1, $2) RETURNING *`;
+  const values = [
+    req.body.title,
+    req.body.paragraph
+  ];
+  const { rows } = await db.query(updatedcontent, values);
+  // console.log(rows);
+  return res.status(201).send(rows);
+ }catch(error){
+  return res.status(400).send(`${error} jsh`);
+ }
+  // writeHomeContent(homeContent);
+  // res.json({ message: 'Home content updated', content: homeContent });
+});
+router.post('/home/experience', async (req, res) => {
+  // let updatedContent = JSON.parse(req.body.content); // Parse the content string
+  const uploader = async (path) => await cloudinary.uploads(path, 'lodge/home', req.body.name+'_'+(new Date()).getTime());
+  const urls = []
+  try{
+  // if (req.file) {
+  //     const file = req.file.path;
+  //       const newPath = await uploader(file)
+  //       urls.push(newPath.url)
+  // }
+  const updatedcontent = `INSERT INTO experience (title, paragraph, image) VALUES($1, $2,$3) RETURNING *`;
+  const values = [
+    req.body.title,
+    req.body.paragraph,
+    req.body?.image
+  ];
+  const { rows } = await db.query(updatedcontent, values);
+  // console.log(rows);
+  return res.status(201).send(rows);
+ }catch(error){
+  return res.status(400).send(`${error} jsh`);
+ }
+  // writeHomeContent(homeContent);
+  // res.json({ message: 'Home content updated', content: homeContent });
+});
+router.post('/home/testimony', async (req, res) => {
+  
+ try{
+  
+  const updatedcontent = `INSERT INTO testimonials (author, description) VALUES($1, $2) RETURNING *`;
+  const values = [
+    req.body.author,
+    req.body.description
+  ];
+  const { rows } = await db.query(updatedcontent, values);
+  // console.log(rows);
+  return res.status(201).send(rows);
+  // console.log(rows);
+ }catch(error){
+  return res.status(400).send(`${error} jsh`);
+ }
+  // writeHomeContent(homeContent);
+  // res.json({ message: 'Home content updated', content: homeContent });
+});
+
+router.put('/home/welcome/:id', async (req, res) => {
+  // const {title} = JSON.parse(req.body);
+  try{
+   const updatedcontent = `UPDATE welcome SET title=$1, paragraph=$2 WHERE id=$3 RETURNING *`;
+   const values = [
+     req.body.title,
+     req.body.paragraph,
+     req.params.id
+   ];
+   const { rows } = await db.query(updatedcontent, values);
+   // console.log(rows);
+   return res.status(201).send(rows);
+  }catch(error){
+   return res.status(400).send(`${error} jsh`);
+  }
+   // writeHomeContent(homeContent);
+   // res.json({ message: 'Home content updated', content: homeContent });
+ });
+router.put('/home/experience/:id', async (req, res) => {
+  // let updatedContent = JSON.parse(req.body.content); // Parse the content string
+  // const uploader = async (path) => await cloudinary.uploads(path, 'lodge/home', req.body.name+'_'+(new Date()).getTime());
+  const urls = []
+  try{
+  // if (req.file) {
+  //     const file = req.file.path;
+  //       const newPath = await uploader(file)
+  //       urls.push(newPath.url)
+  // }
+  const updatedcontent = `UPDATE experience SET title=$1, paragraph=$2, image=$3 where id=$4 RETURNING *`;
+  const values = [
+    req.body.title,
+    req.body.paragraph,
+    req.body?.image,
+    req.params?.id
+  ];
+  const { rows } = await db.query(updatedcontent, values);
+  // console.log(rows);
+  return res.status(201).send(rows);
+ }catch(error){
+  return res.status(400).send(`${error} jsh`);
+ }
+  // writeHomeContent(homeContent);
+  // res.json({ message: 'Home content updated', content: homeContent });
+});
+router.put('/home/testimony/:id', async (req, res) => {
+  
+ try{
+  
+  const updatedcontent = `UPDATE testimonials SET author=$1, description=$2 WHERE id=$3 RETURNING *`;
+  const values = [
+    req.body.author,
+    req.body.description,
+    req.params.id
+  ];
+  const { rows } = await db.query(updatedcontent, values);
+  // console.log(rows);
+  return res.status(201).send(rows);
+  // console.log(rows);
+ }catch(error){
+  return res.status(400).send(`${error} jsh`);
+ }
+  // writeHomeContent(homeContent);
+  // res.json({ message: 'Home content updated', content: homeContent });
+});
+
 
 router.get('/uploads', express.static(path.join(__dirname, './uploads')))
 
 router.get('/rooms', async (req, res) => {
-    // const getAllQ = `SELECT * FROM sites`;
-    // try {
-    //   // const { rows } = qr.query(getAllQ);
-    //   const { rows } = await db.query(getAllQ);
-    //   return res.status(201).send(rows);
-    // } catch (error) {
-    //   if (error.routine === '_bt_check_unique') {
-    //     return res.status(400).send({ message: 'User with that EMAIL already exist' });
-    //   }
-    //   return res.status(400).send(`${error} jsh`);
-    // }
-    return res.status(200).send(rooms);
-  });  
-  router.post('/uploads', upload.single('image'),  async(req, res) => {
+    const getAllQ = `SELECT * FROM rooms`;
+    try {
+      // const { rows } = qr.query(getAllQ);
+      const { rows } = await db.query(getAllQ);
+      return res.status(201).send(rows);
+    } catch (error) {
+      if (error.routine === '_bt_check_unique') {
+        return res.status(400).send({ message: 'User with that rooms exist' });
+      }
+      return res.status(400).send(`${error} jsh`);
+    }
+    // return res.status(200).send(rooms);
+  });
+  router.post('/uploads', upload.array('images', 10),  async(req, res) => {
     // let updatedContent = JSON.parse(req.body.content); // Parse the content string
     const uploader = async (path) => await cloudinary.uploads(path, 'lodge/home', req.body.name+'_'+(new Date()).getTime());
     
     try{
       const urls = []
-      if (req.file) {
-        const file = req.file.path;
-          const newPath = await uploader(file)
-          urls.push(newPath.url)
-    }
-        res.status(201).json({ message: 'successful', imgUrl: urls[0] });
+      // console.log({req})
+    
+    const files = req.files;
+      for (const file of files) {
+        const { path } = file;
+        const newPath = await uploader(path)
+        console.log({ newPath});
+        urls.push(newPath.url)
+      fs.unlinkSync(path)
+      }
+        res.status(201).json({ message: 'successful', imgUrl: urls, status: true });
       } catch (error) {
       return res.status(400).send(error);
       }    
@@ -213,32 +417,6 @@ router.get('/rooms', async (req, res) => {
 
   router.post('/rooms', upload.array('images', 10),  async(req, res) => {
 
-//     if (req.method === 'POST') {
-    
-//     const createUser = `INSERT INTO layouts
-//         (customerid,date, proposedlayout,plotno, formid)
-//       VALUES ($1, $2, $3, $4, $5) RETURNING *`;
-//     console.log(req.body)
-//     const values = [
-//     req.body.customerid,
-//     moment(new Date()),
-//     req.body.layout,
-//     req.body.plot,
-//     req.body.formid
-//       ];
-//     try {
-//     const { rows } = await db.query(createUser, values);
-//     // console.log(rows);
-//     return res.status(201).send(rows);
-//     } catch (error) {
-//     return res.status(400).send(error);
-//     }  
-//   //  },{ resource_type: "auto", public_id: `ridafycovers/${req.body.title}` })
-// } else {
-//     res.status(405).json({
-//       err: `${req.method} method not allowed`
-//     })
-//   }
 if (!req.files || req.files.length === 0) {
   return res.status(400).json({ message: 'No images uploaded' });
 }
@@ -259,7 +437,32 @@ const newRoom = {
   price: parseInt(req.body.price)
 };
   
-    rooms.push(newRoom);
+    // rooms.push(newRoom);
+    if (req.method === 'POST') {
+    
+      const createRoom = `INSERT INTO rooms
+          (name,description, price,images)
+        VALUES ($1, $2, $3, $4) RETURNING *`;
+      console.log(req.body)
+      const values = [
+      req.body.name,
+      req.body.description,
+      parseInt(req.body.price),
+      urls
+        ];
+      try {
+      const { rows } = await db.query(createRoom, values);
+      // console.log(rows);
+      return res.status(201).send(rows);
+      } catch (error) {
+      return res.status(400).send(error);
+      }  
+    //  },{ resource_type: "auto", public_id: `ridafycovers/${req.body.title}` })
+  } else {
+      res.status(405).json({
+        err: `${req.method} method not allowed`
+      })
+    }
     writeRoomData(rooms);
     res.status(201).json({ message: 'Room created', room: newRoom, urls });
   } catch (error) {
@@ -268,40 +471,51 @@ const newRoom = {
 
   });
 
-  router.put('/rooms/:name',  upload.array('images', 10), async(req, res) => {
+  router.put('/rooms/:id', async(req, res) => {
     const roomName = req.params.name;
-    const roomIndex = rooms.findIndex(r => r.name === roomName);
+    // const roomIndex = rooms.findIndex(r => r.name === roomName);
   
-    if (roomIndex === -1) {
-      return res.status(404).json({ message: 'Room not found' });
-    }
+  //   if (roomIndex === -1) {
+  //     return res.status(404).json({ message: 'Room not found' });
+  //   }
   
-    let updatedRoom = {
-      ...rooms[roomIndex],
-      ...JSON.parse(req.body.room),
-      price: parseInt(JSON.parse(req.body.room).price)
-  };
-  const uploader = async (path) => await cloudinary.uploads(path, 'lodge/room', req.body.name+'_'+(new Date()).getTime());
+  //   let updatedRoom = {
+  //     ...rooms[roomIndex],
+  //     ...JSON.parse(req.body.room),
+  //     price: parseInt(JSON.parse(req.body.room).price)
+  // };
+  // const uploader = async (path) => await cloudinary.uploads(path, 'lodge/room', req.body.name+'_'+(new Date()).getTime());
 // const imagePaths = req.files.map(file => `/uploads/${file.filename}`);
 const urls = []
 try{
 
   
-      if (req.files && req.files.length > 0) {
-        // const newImagePaths = req.files.map(file => `/uploads/${file.filename}`);
-        const files = req.files;
-        for (const file of files) {
-          const { path } = file;
-          const newPath = await uploader(path)
-          urls.push(newPath.url)
-        fs.unlinkSync(path)
-        }
-        updatedRoom.images = [...updatedRoom.images, ...urls]; // Add new images
-    }
+    //   if (req.files && req.files.length > 0) {
+    //     // const newImagePaths = req.files.map(file => `/uploads/${file.filename}`);
+    //     const files = req.files;
+    //     for (const file of files) {
+    //       const { path } = file;
+    //       const newPath = await uploader(path)
+    //       urls.push(newPath.url)
+    //     fs.unlinkSync(path)
+    //     }
+    //     updatedRoom.images = [...updatedRoom.images, ...urls]; // Add new images
+    // }
 
-    rooms[roomIndex] = updatedRoom;
-    writeRoomData(rooms);
-    res.json({ message: 'Room updated', room: updatedRoom });
+    // rooms[roomIndex] = updatedRoom;
+    // writeRoomData(rooms);
+    const updatedcontent = `UPDATE rooms SET name=$1, description=$2, price=$3, images=$4 WHERE id=$5`;
+    const values = [
+    req.body.name,
+    req.body.description,
+    req.body.price,
+    req.body.images,
+    req.params.id
+      ];
+    const { rows } = await db.query(updatedcontent, values);
+    // console.log(rows);
+    return res.status(201).send(rows);
+    // res.json({ message: 'Room updated', room: updatedRoom });
    } catch(error) {
 
    }
@@ -322,32 +536,65 @@ router.put('/rooms/:name/availability', (req, res) => {
   writeRoomData(rooms);
   res.json({ message: 'Room availability updated', room: rooms[roomIndex] });
 });
-router.delete('/rooms/:name', (req, res) => {
+router.delete('/rooms/:name', async (req, res) => {
     const roomName = req.params.name;
-    const roomIndex = rooms.findIndex(r => r.name === roomName);
+    // const roomIndex = rooms.findIndex(r => r.name === roomName);
   
-    if (roomIndex === -1) {
-      return res.status(404).json({ message: 'Room not found' });
+    // if (roomIndex === -1) {
+    //   return res.status(404).json({ message: 'Room not found' });
+    // }
+  
+    // rooms.splice(roomIndex, 1);
+    // writeRoomData(rooms);
+    try{
+      const updatedcontent = `DELETE FROM rooms WHERE name=$1`;
+    const values = [
+    roomName
+      ];
+    const { rows } = await db.query(updatedcontent, values);
+    // console.log(rows);
+    return res.status(201).send(rows);
+    }catch(error){
+
     }
-  
-    rooms.splice(roomIndex, 1);
-    writeRoomData(rooms);
-    res.status(204).send();
 })
-router.delete('/rooms/:name/images/:image', (req, res) => {
-  const roomName = req.params.name
-  const imagePath = req.params.image
-  const imageIndex = req.params.index
-  const roomIndex = rooms.findIndex(r => r.name === roomName)
+router.put('/rooms/:id/images', async (req, res) => {
+  const roomName = req.params.id
+  // const imagePath = req.params.image
+  // const imageIndex = req.params.index
+  // const roomIndex = rooms.findIndex(r => r.name === roomName)
+console.log({ body: req.body?.image})
+  // if (roomIndex === -1) return res.status(404).json({message: 'Room not found'})
 
-  if (roomIndex === -1) return res.status(404).json({message: 'Room not found'})
+  // rooms[roomIndex].images = rooms[roomIndex].images.filter(image => image?.split('/room/')[1] !== imagePath);
+  // writeRoomData(rooms)
+  try{
+    const updatedcontent = `UPDATE rooms SET images = array_remove(images, $1) WHERE id = $2`;
+  const values = [
+  req.body.image,
+  roomName
+    ];
+  const { rows } = await db.query(updatedcontent, values);
+  // console.log(rows);
+  return res.status(201).send(rows);
+  }catch(error){
 
-  rooms[roomIndex].images = rooms[roomIndex].images.filter(image => image?.split('/room/')[1] !== imagePath);
-  writeRoomData(rooms)
-  res.status(204).send()
+  }
+  // res.status(204).send()
 })
-router.get('/bookings', (req, res) => {
-  res.json(bookings)
+router.get('/bookings', async (req, res) => {
+  const getAllQ = `SELECT * FROM bookings`;
+  try {
+    // const { rows } = qr.query(getAllQ);
+    const { rows } = await db.query(getAllQ);
+    return res.status(201).send(rows);
+  } catch (error) {
+    if (error.routine === '_bt_check_unique') {
+      return res.status(400).send({ message: 'User with that bookings exist' });
+    }
+    return res.status(400).send(`${error} jsh`);
+  }
+  // res.json(bookings)
 })
 
 router.get('/rooms/:checkIn/:checkOut', (req, res) => {
@@ -374,11 +621,50 @@ router.get('/rooms/:checkIn/:checkOut', (req, res) => {
   res.json(availableRooms)
 })
 
-router.post('/bookings', (req, res) => {
+const checkRoomAvailability = async (roomType, checkIn, checkOut) => {
+  try {
+      const {rows} = await db.query(
+          `SELECT EXISTS (
+              SELECT 1
+              FROM bookings
+              WHERE $1 = ANY(room_types)
+                AND check_in < $2
+                AND check_out > $3
+          )`,
+          [roomType, checkOut, checkIn]
+      );
+      // const { rows } = await db.query(createRoom, values);
+      console.log({ rows });
+      return rows[0].exists; // Returns false if the room is available, true otherwise
+  } catch (error) {
+      console.error("Error checking room availability:", error);
+      throw error;
+  }
+};
+
+router.get('/rooms/availability/:roomType/:checkIn/:checkOut', async (req, res) => {
+  const { roomType, checkIn, checkOut } = req.params;
+
+  if (!roomType || !checkIn || !checkOut) {
+      return res.status(400).json({ message: 'Missing required parameters' });
+  }
+
+  try {
+      // const client = await pool.connect();
+      const isbooked = await checkRoomAvailability(roomType, checkIn, checkOut);
+      // if booking exist it returns true
+      // client.release();
+      // res.json({ available: isbooked });
+      return res.status(201).send({status: true, message: isbooked ? 'Room not avaible for date range': 'Room is available', isAvalable: !isbooked });
+  } catch (error) {
+      res.status(500).json({ message: 'Failed to check availability' });
+  }
+});
+router.post('/bookings', async (req, res) => {
   const { roomTypes, checkIn, checkOut, guests, ...rest } = req.body;
   const checkInDate = new Date(checkIn)
   const checkOutDate = new Date(checkOut)
-
+  try{
   if (!Array.isArray(roomTypes) || roomTypes.length === 0) {
       return res.status(400).json({ message: 'At least one room type must be selected' });
   }
@@ -388,45 +674,119 @@ router.post('/bookings', (req, res) => {
   }
 
   // Check availability for all requested rooms and dates
-  const unavailableRooms = roomTypes.filter(roomType => {
-      return bookings.some(booking => {
-          if (!booking.roomTypes.includes(roomType)) return false
-          const bookingCheckIn = new Date(booking.checkIn)
-          const bookingCheckOut = new Date(booking.checkOut)
-          return (checkInDate < bookingCheckOut && checkOutDate > bookingCheckIn)
-      })
-  });
+  // const unavailableRooms = roomTypes.filter(roomType => {
+  //     return bookings.some(booking => {
+  //         if (!booking.roomTypes.includes(roomType)) return false
+  //         const bookingCheckIn = new Date(booking.checkIn)
+  //         const bookingCheckOut = new Date(booking.checkOut)
+  //         return (checkInDate < bookingCheckOut && checkOutDate > bookingCheckIn)
+  //     })
+  // });
 
-  if (unavailableRooms.length > 0) {
-      return res.status(400).json({ message: `The following rooms are not available for the selected dates: ${unavailableRooms.join(', ')}` });
-  }
+  // if (unavailableRooms.length > 0) {
+  //     return res.status(400).json({ message: `The following rooms are not available for the selected dates: ${unavailableRooms.join(', ')}` });
+  // }
+ 
+ const createRoom = `INSERT INTO bookings
+          (booking_id,room_types, check_in, check_out, guests, name, email, phone, special_requests)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`;
+      // console.log(req.body)
+      // const values = [
+      // req.body.name,
+      // req.body.description,  
+      // parseInt(req.body.price),
+      // urls
+      //   ];
+      const values = [
+        Date.now(),
+        {roomTypes},
+        checkIn,
+        checkOut,
+        guests,
+        req.body.name,
+        req.body.email,
+        req.body.phone,
+        req.body.specialRequests
+    ];
+      const { rows } = await db.query(createRoom, values);
+      console.log(rows);
+      return res.status(201).send('rows');
+      }catch(error){
 
-  const booking = {
-      id: Date.now(),
-      roomTypes,
-      checkIn,
-      checkOut,
-      guests,
-      ...rest
-  };
+      }
+  // bookings.push(booking);
+  // writeBookingsData(bookings); // Save the bookings data
 
-  bookings.push(booking);
-  writeBookingsData(bookings); // Save the bookings data
-
-  console.log('New booking:', booking);
-  res.status(201).json({ message: 'Booking successful', bookingId: booking.id });
+  // console.log('New booking:', booking);
+  // res.status(201).json({ message: 'Booking successful', bookingId: booking.id });
 });
 
+router.post('/booking',  async(req, res) => {
+  const { roomTypes, checkIn, checkOut, guests, ...rest } = req.body;
+  const checkInDate = new Date(checkIn)
+  const checkOutDate = new Date(checkOut)
+  
+  if (!Array.isArray(roomTypes) || roomTypes.length === 0) {
+      return res.status(400).json({ message: 'At least one room type must be selected' });
+  }
+
+  if (checkInDate >= checkOutDate){
+      return res.status(400).json({message: 'Check out date must be after check in date'})
+  }
+
+      // rooms.push(newRoom);
+      if (req.method === 'POST') {
+        const createRoom = `INSERT INTO bookings  
+          (booking_id,room_types, check_in, check_out, guests, name, email, phone, special_requests)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`;
+        console.log(req.body)
+        const values = [
+          Date.now(),
+          req.body.roomTypes,
+          req.body.checkIn,
+          req.body.checkOut,
+          req.body.guests,
+          req.body.name,
+          req.body.email,
+          req.body.phone,
+          req.body.specialRequests
+      ];
+        try {
+        const { rows } = await db.query(createRoom, values);
+        // console.log(rows);
+        return res.status(201).send({ status: true, data: rows, message: 'successful' });
+        } catch (error) {
+        return res.status(400).send(error);
+        }  
+      //  },{ resource_type: "auto", public_id: `ridafycovers/${req.body.title}` })
+    } else {
+        res.status(405).json({
+          err: `${req.method} method not allowed`
+        })
+      }
+  
+    });
 // route to reset the rooms when the user reload the page
 router.get('/reset', (req, res) => {
   bookings = []
   writeBookingsData(bookings)
   res.json({message: 'bookings reset'})
 })
-router.delete('/bookings/:id', (req, res) => {
+router.delete('/bookings/:id', async (req, res) => {
   const id = parseInt(req.params.id)
-  bookings = bookings.filter(booking => booking.id !== id)
-  writeBookingsData(bookings)
-  res.status(204).send()
+  // bookings = bookings.filter(booking => booking.id !== id)
+  const updatedcontent = `DELETE FROM bookings WHERE id=$1`;
+  const values = [
+  id
+    ];
+    try{
+  const { rows } = await db.query(updatedcontent, values);
+  // console.log(rows);
+  return res.status(201).send(rows);
+    } catch(error) {
+
+    }
+  // writeBookingsData(bookings)
+  // res.status(204).send()
 })
   module.exports = router;

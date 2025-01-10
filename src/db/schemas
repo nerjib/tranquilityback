@@ -9,7 +9,7 @@ CREATE TABLE rooms (
 
 CREATE TABLE bookings (
     id SERIAL PRIMARY KEY,
-    booking_id INTEGER,
+    booking_id VARCHAR(255),
     room_types TEXT[], -- Array of room names booked
     check_in DATE NOT NULL,
     check_out DATE NOT NULL,
@@ -19,9 +19,21 @@ CREATE TABLE bookings (
     phone VARCHAR(20),
     special_requests TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- Timestamp of booking creation
-    is_paid BOOLEAN
+    is_paid BOOLEAN,
+    payment_id VARCHAR(255)
 );
 
+CREATE TABLE booking_payments (
+    id SERIAL PRIMARY KEY,
+    payment_id VARCHAR(255),
+    booking_id VARCHAR(255),
+    details JSONB,
+    book_data JSONB,
+    amount INTEGER,
+    currency VARCHAR(3),
+    status VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE home_content (
     id SERIAL PRIMARY KEY,
     content JSONB -- Use JSONB for better performance with queries

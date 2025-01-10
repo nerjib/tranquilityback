@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const cloudinary = require('./cloudinary')
+const https = require('https');
 
 const dataFilePath = path.join(__dirname, 'rooms.json'); // Path to the JSON file
 const bookingsFilePath = path.join(__dirname, 'bookings.json');
@@ -789,4 +790,137 @@ router.delete('/bookings/:id', async (req, res) => {
   // writeBookingsData(bookings)
   // res.status(204).send()
 })
+
+//payments with paystack
+router.post('/initialize', async (req, res) => {
+  try {
+      const { amount, email } = req.body;
+
+      const params = JSON.stringify({
+          email: email,
+          amount: amount,
+      });
+
+      const options = {
+          hostname: 'api.paystack.co',
+          port: 443,
+          path: '/transaction/initialize',
+          method: 'POST',
+          headers: {
+              Authorization: `Bearer ${process.env.p_secret}`,
+              'Content-Type': 'application/json',
+          },
+      };
+
+      const reqPaystack = https.request(options, (resp) => {
+          let data = '';
+
+          resp.on('data', (chunk) => {
+              data += chunk;
+          });
+
+          resp.on('end', () => {
+              return res.status(200).json(JSON.parse(data));
+          });
+      });
+
+      reqPaystack.on('error', (error) => {
+          console.error(error);
+          return res.status(500).json({message: error.message})
+      });
+
+      reqPaystack.write(params);
+      reqPaystack.end();
+  } catch (error) {
+      console.error("Paystack initialization error:", error);
+      return res.status(500).json({message: error.message})
+  }
+});
+
+router.post('/verify', async (req, res) => {
+  try {
+      const { reference, ...bookingData } = req.body;
+
+      const options = {
+          hostname: 'api.paystack.co',
+          port: 443,
+          path: `/transaction/verify/${reference}`,
+          method: 'GET',
+          headers: {
+              Authorization: `Bearer ${process.env.p_secret}`,
+          },
+      };
+
+      const reqPaystack = https.request(options, async (resp) => {
+          let data = '';
+
+          resp.on('data', (chunk) => {
+              data += chunk;
+          });
+
+          resp.on('end', async () => {
+              const paystackResponse = JSON.parse(data);
+              if (paystackResponse.data.status === 'success') {
+                const updateBooking = `UPDATE bookings SET is_paid=$1, payment_id=$2 WHERE booking_id=$3 RETURNING *`;
+                const createPayments = `INSERT INTO booking_payments (booking_id, amount,payment_id, details, book_data, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`;
+                const values = [
+                  true,
+                  reference,
+                  bookingData.booking_id
+                ];
+                const paymentValues = [
+                  bookingData.booking_id,
+                  bookingData.amount,
+                  reference,
+                  JSON.stringify(paystackResponse),
+                  JSON.stringify(bookingData),
+                  'success'
+                ];
+                const { rows } = await db.query(updateBooking, values);
+                const { rows: payment } = await db.query(createPayments, paymentValues);
+                return res.status(200).json({ message: 'Payment verified and booking created', data: { booking: rows, payment: payment } });
+                  // const client = await pool.connect();
+                  // try {
+                  //     await createBooking(client, bookingData);
+                  //     client.release();
+                  //     return res.status(200).json({ message: 'Payment verified and booking created' });
+                  // } catch (error) {
+                  //     console.error('Error creating booking after successful payment', error)
+                  //     return res.status(500).json({message: 'Error creating booking after successful payment'})
+                  // }
+                  
+              } else {
+                const updateBooking = `UPDATE bookings SET is_paid=$1, payment_id=$2 WHERE booking_id=$3 RETURNING *`;
+                const createPayments = `INSERT INTO booking_payments (booking_id, amount,payment_id, details, book_data, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`;
+                const values = [
+                  false,
+                  reference,
+                  bookingData.booking_id
+                ];
+                const paymentValues = [
+                  bookingData.booking_id,
+                  bookingData.amount,
+                  reference,
+                  JSON.stringify(paystackResponse),
+                  JSON.stringify(bookingData),
+                  'failed'
+                ];
+                const { rows } = await db.query(updateBooking, values);
+                const { rows: payment } = await db.query(createPayments, paymentValues);
+                  return res.status(400).json({ message: 'Payment verification failed' });
+              }
+          });
+      });
+
+      reqPaystack.on('error', (error) => {
+          console.error(error);
+          return res.status(500).json({message: error.message})
+      });
+
+      reqPaystack.end();
+  } catch (error) {
+      console.error("Paystack verification error:", error);
+      return res.status(500).json({message: error.message})
+  }
+});
   module.exports = router;

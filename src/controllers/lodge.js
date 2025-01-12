@@ -944,7 +944,7 @@ router.post('/verify', async (req, res) => {
                 ];
                 const paymentValues = [
                   booking_id,
-                  paystackResponse?.data?.amount,
+                  paystackResponse?.data?.amount/100,
                   reference,
                   JSON.stringify(paystackResponse),
                   JSON.stringify(bookingData),

@@ -9,7 +9,7 @@ CREATE TABLE rooms (
 
 CREATE TABLE bookings (
     id SERIAL PRIMARY KEY,
-    booking_id VARCHAR(255),
+    booking_id VARCHAR(255) UNIQUE NOT NULL, -- Booking ID should be unique
     room_types TEXT[], -- Array of room names booked
     check_in DATE NOT NULL,
     check_out DATE NOT NULL,
@@ -22,10 +22,16 @@ CREATE TABLE bookings (
     is_paid BOOLEAN,
     payment_id VARCHAR(255)
 );
-
+CREATE TABLE feedback (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE booking_payments (
     id SERIAL PRIMARY KEY,
-    payment_id VARCHAR(255),
+    payment_id VARCHAR(255) UNIQUE NOT NULL, -- Payment ID should be unique
     booking_id VARCHAR(255),
     details JSONB,
     book_data JSONB,

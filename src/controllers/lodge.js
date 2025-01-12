@@ -7,10 +7,30 @@ const fs = require('fs');
 const multer = require('multer');
 const cloudinary = require('./cloudinary')
 const https = require('https');
+const nodemailer = require('nodemailer');
 
 const dataFilePath = path.join(__dirname, 'rooms.json'); // Path to the JSON file
 const bookingsFilePath = path.join(__dirname, 'bookings.json');
 const heroContentFilePath = path.join(__dirname, 'heroContent.json');
+
+const transporter = nodemailer.createTransport({
+  host: process.env.mail_host,
+  port: 465,
+  secure: true,
+  // service: 'gmail', // or your email service
+  auth: {
+      user: process.env.node_email,
+      pass: process.env.mail_pass,
+  },
+});
+
+const sendMail = async (mailOptions) => {
+  try {
+      const jjj = await transporter.sendMail(mailOptions);
+  } catch (error) {
+      console.error('Error sending email:', error);
+  }
+};
 
 const readHeroContent = () => {
     try {
@@ -159,6 +179,28 @@ router.put('/hero', async(req, res) => {
   } catch (error) {
   return res.status(400).send(error);
   }  
+});
+
+router.post('/feedback', async (req, res) => {
+  try {
+      const { name, email, message } = req.body;
+
+      if (!name || !email || !message) {
+          return res.status(400).json({ message: 'All fields are required.' });
+      }
+
+      // Basic email validation (you might want a more robust solution)
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return res.status(400).json({ message: 'Invalid email format.' });
+      }
+
+      await db.query('INSERT INTO feedback (name, email, message) VALUES ($1, $2, $3)', [name, email, message]);
+
+      res.status(200).json({ message: 'Feedback submitted successfully' });
+  } catch (error) {
+      console.error('Error saving feedback:', error);
+      res.status(500).json({ message: 'Error submitting feedback. Please try again later.' });
+  }
 });
 
 router.post('/hero', async(req, res) => {
@@ -598,6 +640,21 @@ router.get('/bookings', async (req, res) => {
   // res.json(bookings)
 })
 
+router.get('/bookings/:id', async (req, res) => {
+  const getAllQ = `SELECT * FROM bookings where booking_id=$1`;
+  try {
+    // const { rows } = qr.query(getAllQ);
+    const { rows } = await db.query(getAllQ, [req.params.id]);
+    return res.status(201).send(rows);
+  } catch (error) {
+    if (error.routine === '_bt_check_unique') {
+      return res.status(400).send({ message: 'User with that bookings exist' });
+    }
+    return res.status(400).send(`${error} jsh`);
+  }
+  // res.json(bookings)
+})
+
 router.get('/rooms/:checkIn/:checkOut', (req, res) => {
   const checkIn = req.params.checkIn
   const checkOut = req.params.checkOut
@@ -755,6 +812,23 @@ router.post('/booking',  async(req, res) => {
         try {
         const { rows } = await db.query(createRoom, values);
         // console.log(rows);
+        sendMail({
+          from: 'payments@tranquilitylodgekd.com',
+          to: req.body.email,
+          subject: 'Booking Confirmation',
+          html: `
+              <h1>Booking Confirmation</h1>
+              <p>Hi ${req.body.name},</p>
+              <p>Your booking has been confirmed. Here are the details:</p>
+              <p>Room Types: ${req.body.roomTypes.join(', ')}</p>
+              <p>Check In: ${req.body.checkIn}</p>
+              <p>Check Out: ${req.body.checkOut}</p>
+              <p>Guests: ${req.body.guests}</p>
+              <p>Special Requests: ${req.body.specialRequests}</p>
+              <p>Click on this link to view your booking details: <a href="https://tranquilitylodgekd.com/#/payment/${rows[0].booking_id}">Booking Details</a></p>
+              <p>Thank you for choosing Tranquility Lodge</p>
+          `
+      });
         return res.status(201).send({ status: true, data: rows, message: 'successful' });
         } catch (error) {
         return res.status(400).send(error);
@@ -839,7 +913,7 @@ router.post('/initialize', async (req, res) => {
 
 router.post('/verify', async (req, res) => {
   try {
-      const { reference, ...bookingData } = req.body;
+      const { reference, booking_id, ...bookingData } = req.body;
 
       const options = {
           hostname: 'api.paystack.co',
@@ -866,11 +940,11 @@ router.post('/verify', async (req, res) => {
                 const values = [
                   true,
                   reference,
-                  bookingData.booking_id
+                  booking_id
                 ];
                 const paymentValues = [
-                  bookingData.booking_id,
-                  bookingData.amount,
+                  booking_id,
+                  paystackResponse?.data?.amount,
                   reference,
                   JSON.stringify(paystackResponse),
                   JSON.stringify(bookingData),
@@ -878,6 +952,25 @@ router.post('/verify', async (req, res) => {
                 ];
                 const { rows } = await db.query(updateBooking, values);
                 const { rows: payment } = await db.query(createPayments, paymentValues);
+                sendMail({
+                  from: 'payments@tranquilitylodgekd.com',
+                  to: bookingData.email,
+                  subject: 'Payment Successful',
+                  html: `
+                      <h1>Payment Successful</h1>
+                      <p>Hi ${bookingData.name},</p>
+                      <p>Your payment has been confirmed. Here are the details:</p>
+                      <p>Amount: ${new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: 'NGN',
+                        }).format(paystackResponse.data.amount/100)}
+                      </p>
+                      <p>Reference: ${reference}</p>
+                      <p>Click on this link to view your booking details: <a href="https://tranquilitylodgekd.com/#/payment/${booking_id}">Booking Details</a></p>
+                      <p>Thank you for choosing Tranquility Lodge</p>
+                  `
+              });
+
                 return res.status(200).json({ message: 'Payment verified and booking created', data: { booking: rows, payment: payment } });
                   // const client = await pool.connect();
                   // try {
@@ -895,11 +988,11 @@ router.post('/verify', async (req, res) => {
                 const values = [
                   false,
                   reference,
-                  bookingData.booking_id
+                  booking_id
                 ];
                 const paymentValues = [
-                  bookingData.booking_id,
-                  bookingData.amount,
+                  booking_id,
+                  paystackResponse?.data?.amount,
                   reference,
                   JSON.stringify(paystackResponse),
                   JSON.stringify(bookingData),
@@ -923,4 +1016,20 @@ router.post('/verify', async (req, res) => {
       return res.status(500).json({message: error.message})
   }
 });
+
+router.get('/payments', async (req, res) => {
+  const getAllQ = `SELECT * FROM booking_payments`;
+  try {
+    // const { rows } = qr.query(getAllQ);
+    const { rows } = await db.query(getAllQ);
+    return res.status(201).send(rows);
+  } catch (error) {
+    if (error.routine === '_bt_check_unique') {
+      return res.status(400).send({ message: 'User with that bookings exist' });
+    }
+    return res.status(400).send(`${error} jsh`);
+  }
+  // res.json(bookings)
+})
+
   module.exports = router;

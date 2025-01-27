@@ -626,7 +626,7 @@ console.log({ body: req.body?.image})
   // res.status(204).send()
 })
 router.get('/bookings', async (req, res) => {
-  const getAllQ = `SELECT * FROM bookings LEFT JOIN booking_payments ON bookings.booking_id = booking_payments.booking_id`;
+  const getAllQ = `SELECT bookings.id,bookings.booking_id, booings.name, bookings.email, bookings.phone, bookings.room_types, bookings.check_in, bookings.check_out, bookings.guests, bookings.special_requests, booking_payments.payment_id, booking_payments.amount, booking_payments.status FROM bookings LEFT JOIN booking_payments ON bookings.booking_id = booking_payments.booking_id`;
   try {
     // const { rows } = qr.query(getAllQ);
     const { rows } = await db.query(getAllQ);

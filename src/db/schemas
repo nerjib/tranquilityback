@@ -4,7 +4,8 @@ CREATE TABLE rooms (
     description TEXT,
     price INTEGER,
     images TEXT[],
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    floor INTEGER default 0
 );
 
 CREATE TABLE bookings (
@@ -20,7 +21,8 @@ CREATE TABLE bookings (
     special_requests TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- Timestamp of booking creation
     is_paid BOOLEAN,
-    payment_id VARCHAR(255)
+    payment_id VARCHAR(255),
+    status varchar(255) DEFAULT pending
 );
 CREATE TABLE feedback (
     id SERIAL PRIMARY KEY,

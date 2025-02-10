@@ -8,10 +8,29 @@ const multer = require('multer');
 const cloudinary = require('./cloudinary')
 const https = require('https');
 const nodemailer = require('nodemailer');
+const cron = require('node-cron');
 
 const dataFilePath = path.join(__dirname, 'rooms.json'); // Path to the JSON file
 const bookingsFilePath = path.join(__dirname, 'bookings.json');
 const heroContentFilePath = path.join(__dirname, 'heroContent.json');
+
+cron.schedule('*/5 * * * *', async () => {
+  try {
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000); // 1 hour ago
+
+      const result = await db.query(
+          `UPDATE bookings 
+           SET status = 'cancelled' 
+           WHERE status = 'pending' AND created_at < $1`,
+          [oneHourAgo]
+      );
+
+      console.log(`Cancelled ${result.rowCount} pending reservations.`);
+  } catch (error) {
+      console.error('Error cancelling reservations:', error);
+  }
+});
 
 const transporter = nodemailer.createTransport({
   host: process.env.mail_host,
@@ -423,7 +442,7 @@ router.put('/home/testimony/:id', async (req, res) => {
 router.get('/uploads', express.static(path.join(__dirname, './uploads')))
 
 router.get('/rooms', async (req, res) => {
-    const getAllQ = `SELECT * FROM rooms`;
+    const getAllQ = `SELECT * FROM rooms ORDER BY price desc`;
     try {
       // const { rows } = qr.query(getAllQ);
       const { rows } = await db.query(getAllQ);
@@ -688,8 +707,9 @@ const checkRoomAvailability = async (roomType, checkIn, checkOut) => {
               WHERE $1 = ANY(room_types)
                 AND check_in < $2
                 AND check_out > $3
+                AND status = $4
           )`,
-          [roomType, checkOut, checkIn]
+          [roomType, checkOut, checkIn, 'pending']
       );
       // const { rows } = await db.query(createRoom, values);
       console.log({ rows });
@@ -713,7 +733,7 @@ router.get('/rooms/availability/:roomType/:checkIn/:checkOut', async (req, res) 
       // if booking exist it returns true
       // client.release();
       // res.json({ available: isbooked });
-      return res.status(201).send({status: true, message: isbooked ? 'Room not avaible for date range': 'Room is available', isAvalable: !isbooked });
+      return res.status(201).send({status: true, message: isbooked ? 'Room not available for date range': 'Room is available', isAvalable: !isbooked });
   } catch (error) {
       res.status(500).json({ message: 'Failed to check availability' });
   }

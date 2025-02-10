@@ -955,12 +955,13 @@ router.post('/verify', async (req, res) => {
           resp.on('end', async () => {
               const paystackResponse = JSON.parse(data);
               if (paystackResponse.data.status === 'success') {
-                const updateBooking = `UPDATE bookings SET is_paid=$1, payment_id=$2 WHERE booking_id=$3 RETURNING *`;
+                const updateBooking = `UPDATE bookings SET is_paid=$1, payment_id=$2, status=$4 WHERE booking_id=$3 RETURNING *`;
                 const createPayments = `INSERT INTO booking_payments (booking_id, amount,payment_id, details, book_data, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`;
                 const values = [
                   true,
                   reference,
-                  booking_id
+                  booking_id,
+                  'paid'
                 ];
                 const paymentValues = [
                   booking_id,
